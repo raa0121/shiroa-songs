@@ -1,101 +1,73 @@
-import { Archive } from "../data.json.page.ts";
-import { useCallback, useEffect, useRef, useState } from "../deps.ts";
-import styles from "./styles.css.ts";
+import { useEffect, useRef, useState } from "react";
+import type { Archive } from "./archive.ts";
+import styles from "./App.module.css";
 
-const App = () => {
+export default function App() {
   const [archives, setArchives] = useState<Archive[]>([]);
-  const [filter, setFilter] = useState<string>("");
-  const [src, setSrc] = useState<string>("");
-  const [autoplay, setAutoplay] = useState<boolean>(false);
+  const [filter, setFilter] = useState("");
+  const [src, setSrc] = useState("");
+  const [autoplay, setAutoplay] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const overlayClose = useCallback((event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      setSrc("");
-    }
-  }, []);
-  const focusFilter = useCallback((ev: KeyboardEvent) => {
-    if (
-      ev.key === "/" && searchRef.current &&
-      document.activeElement != searchRef.current
-    ) {
-      ev.preventDefault();
-      searchRef.current.focus();
-    }
-  }, []);
-  const clearFilter = useCallback((ev: KeyboardEvent) => {
-    if (ev.key === "Escape") {
-      setFilter("");
-    }
-  }, []);
 
   useEffect(() => {
     (async () => {
       const res = await fetch("/data.json");
-      const data = (await res.json()) as Archive[];
-      const archives = data.map((i) => {
-        return {archiveTime: new Date(i.archiveTime), archiveTitle: i.archiveTitle, songs: i.songs}
-      })
-      setArchives(archives);
+      setArchives(await res.json() as Archive[]);
     })();
   }, []);
 
   useEffect(() => {
-    document.addEventListener("keydown", overlayClose, false);
-    document.addEventListener("keydown", focusFilter);
-    return () => {
-      document.removeEventListener("keydown", overlayClose);
-      document.removeEventListener("keydown", focusFilter);
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        setSrc("");
+        setFilter("");
+      } else if (
+        ev.key === "/" && searchRef.current &&
+        document.activeElement !== searchRef.current
+      ) {
+        ev.preventDefault();
+        searchRef.current.focus();
+      }
     };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  useEffect(() => {
-    document.addEventListener("keydown", clearFilter);
-    return () => document.removeEventListener("keydown", clearFilter);
-  }, [searchRef]);
-
-  const filtered = filter.trim() == ""
-    ? archives
-    : archives.reduce<Archive[]>((filtered, archive) => {
-      const filteredSongs = archive.songs.filter((s) =>
-        s.song.indexOf(filter) != -1
-      );
-
-      if (filteredSongs.length > 0) {
-        filtered.push({
-          archiveTime: archive.archiveTime,
-          archiveTitle: archive.archiveTitle,
-          songs: filteredSongs,
-        });
-      }
-
-      return filtered;
-    }, []);
+  const filtered = filter.trim() === "" ? archives : archives.flatMap(
+    (archive) => {
+      const songs = archive.songs.filter((s) => s.song.includes(filter));
+      return songs.length > 0 ? [{ ...archive, songs }] : [];
+    },
+  );
 
   return (
-    <div class={styles.container}>
-      <div class={styles.box}>
+    <div className={styles.container}>
+      <div className={styles.box}>
         <div>
-          <h1 class={styles.title}>猫魔しろあ歌枠セットリスト</h1>
+          <h1 className={styles.title}>猫魔しろあ歌枠セットリスト</h1>
         </div>
         <div>
-          <div class={styles["autoplay-container"]}>
-            <h2 class={styles["autoplay-label"]}>自動再生</h2>
+          <div className={styles["autoplay-container"]}>
+            <h2 className={styles["autoplay-label"]}>自動再生</h2>
             <input
               id="autoplay"
-              class={styles.toggle_input}
+              className={styles.toggle_input}
               type="checkbox"
+              checked={autoplay}
               onChange={(ev) => setAutoplay(ev.currentTarget.checked)}
             />
-            <label for="autoplay" class={styles.toggle_label}></label>
+            <label htmlFor="autoplay" className={styles.toggle_label}></label>
           </div>
-          <div class={styles["isearch-container"]}>
-            <label for="isearch" class={styles["isearch-label"]}>検索</label>
+          <div className={styles["isearch-container"]}>
+            <label htmlFor="isearch" className={styles["isearch-label"]}>
+              検索
+            </label>
             <input
               id="isearch"
               ref={searchRef}
               type="text"
               value={filter}
-              onInput={(ev) => setFilter(ev.currentTarget.value)}
+              onChange={(ev) => setFilter(ev.currentTarget.value)}
             />
           </div>
         </div>
@@ -104,29 +76,24 @@ const App = () => {
         ? (
           <div
             id="overlay"
-            class={`${styles.overlay} overlay-event`}
-            onClick={() => {
-              setSrc("");
-            }}
+            className={`${styles.overlay} overlay-event`}
+            onClick={() => setSrc("")}
           >
-            <div class={styles.flex}>
-              <div id="overlay-inner" class={styles["overlay-inner"]}>
+            <div className={styles.flex}>
+              <div id="overlay-inner" className={styles["overlay-inner"]}>
                 <iframe
                   id="embed"
-                  class={styles["overlay-iframe"]}
-                  // FIXME: "" not allowed here
-                  // allowFullScreen=""
+                  className={styles["overlay-iframe"]}
+                  allowFullScreen
                   frameBorder="0"
                   src={`${src}${autoplay ? "&autoplay=1" : ""}`}
                 >
                 </iframe>
                 <button
                   id="close-btn"
-                  class={`${styles["close-btn"]} overlay-event`}
+                  className={`${styles["close-btn"]} overlay-event`}
                   type="button"
-                  onClick={() => {
-                    setSrc("");
-                  }}
+                  onClick={() => setSrc("")}
                 >
                   Close
                 </button>
@@ -135,19 +102,23 @@ const App = () => {
           </div>
         )
         : null}
-      <div class={`p-10 ${styles.scroll}`}>
+      <div className={styles.scroll}>
         {filtered.map((archive) => (
-          <div class="grid grid-cols-2">
+          <div key={archive.archiveTitle}>
             <p>{archive.archiveTitle}</p>
-            <p class={styles.date}>{archive.archiveTime.toLocaleDateString().replaceAll('/', '-')}</p>
+            <p className={styles.date}>
+              {new Date(archive.archiveTime).toLocaleDateString().replaceAll(
+                "/",
+                "-",
+              )}
+            </p>
             <ul>
               {archive.songs.map((song) => (
-                <li class={styles.songItem}>
+                <li key={song.startURL} className={styles.songItem}>
                   <a
-                    class={`${styles["link"]} overlay-event`}
-                    onClick={() => {
-                      setSrc(song.startURL);
-                    }}
+                    className={`${styles["link"]} overlay-event`}
+                    onClick={() =>
+                      setSrc(song.startURL)}
                   >
                     {song.song}
                   </a>
@@ -157,11 +128,9 @@ const App = () => {
           </div>
         ))}
       </div>
-      <footer class="info">
+      <footer>
         <p>©2023+ raa0121</p>
       </footer>
     </div>
   );
-};
-
-export default <App />;
+}
